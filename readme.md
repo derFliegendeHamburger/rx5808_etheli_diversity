@@ -17,7 +17,7 @@ affordable arduino based 'openpilot' diversity board with 2 RX5808 modules (appr
  * down-button decreases upper range boundary
 * Setup is likely broken atm
 
-1[v13d](v13d.jpg)
+![v13d](v13d.jpg)
 
 ## previous info
 
