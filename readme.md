@@ -7,17 +7,17 @@ affordable arduino based 'openpilot' diversity board with 2 RX5808 modules (appr
 
 ## Features
 
-*    mostly identical to base etheli version
-*    Scanner is enhanced
- *       to work on frequency instead of bands/channels.
- *      uses most screen estate for graphing
- *      maximum range is from [5505 ; 5995] MHz
- *      scans and displays 120 steps
- *      up-button increases lower range boundary,
- *      down-button decreases upper range boundary
-*    Setup is likely broken atm
+* mostly identical to base etheli version
+* Scanner is enhanced
+ * to work on frequency instead of bands/channels.
+ * uses most screen estate for graphing
+ * maximum range is from [5505 ; 5995] MHz
+ * scans and displays 120 steps
+ * up-button increases lower range boundary,
+ * down-button decreases upper range boundary
+* Setup is likely broken atm
 
-(v13d.jpg)
+1[v13d](v13d.jpg)
 
 ## previous info
 
