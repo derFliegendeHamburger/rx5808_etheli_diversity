@@ -194,6 +194,7 @@ uint16_t readRSSI()
   return readRSSI(-1);
 }
 
+int rawRssiA, rawRssiB;
 uint16_t readRSSI(char receiver)
 {
 #endif
@@ -205,12 +206,15 @@ uint16_t readRSSI(char receiver)
 #endif
   for (uint8_t i = 0; i < RSSI_READS; i++)
   {
-    analogRead(rssiPinA);
-    rssiA += analogRead(rssiPinA);//random(RSSI_MAX_VAL-200, RSSI_MAX_VAL);//
-
+	if (diversity_mode != useReceiverB) {
+		analogRead(rssiPinA);
+		rssiA += analogRead(rssiPinA);//random(RSSI_MAX_VAL-200, RSSI_MAX_VAL);//
+	}
 #ifdef USE_DIVERSITY
-    analogRead(rssiPinB);
-    rssiB += analogRead(rssiPinB);//random(RSSI_MAX_VAL-200, RSSI_MAX_VAL);//
+	if (diversity_mode != useReceiverA) {
+		analogRead(rssiPinB);
+		rssiB += analogRead(rssiPinB);//random(RSSI_MAX_VAL-200, RSSI_MAX_VAL);//
+	}
 #endif
 
 
@@ -222,9 +226,11 @@ uint16_t readRSSI(char receiver)
 
   }
   rssiA = rssiA / RSSI_READS; // average of RSSI_READS readings
+  rawRssiA = rssiA;
 
 #ifdef USE_DIVERSITY
   rssiB = rssiB / RSSI_READS; // average of RSSI_READS readings
+  rawRssiB = rssiB;
 #endif
   // special case for RSSI setup
   if (system_state == STATE_RSSI_SETUP)
@@ -304,7 +310,6 @@ uint16_t readRSSI(char receiver)
     rssi = rssiB;
   }
 #endif
-
 
   //SEND RSSI FEEDBACK
   if ( (( time_screen_saver2 != 0 &&  time_screen_saver2 + 8000 < millis()))   && ( system_state == STATE_SCREEN_SAVER) )

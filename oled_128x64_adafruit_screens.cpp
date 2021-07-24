@@ -408,6 +408,18 @@ void screens::updateSeekMode(uint8_t state, uint8_t channelIndex, uint8_t channe
   display.display();
 }
  
+extern  uint16_t mhz_range_min;
+extern  uint16_t mhz_range_max;
+// display top left is (0,0)
+#define BAR_BASE_Y (52) //  this defines visual bottom base line for the bargraph
+#define BAR_HEIGHT 50 // relative height of the bargraph
+#define BAR_TOP_Y (BAR_BASE_Y - BAR_HEIGHT +1) // this defines visual top line for the bargraph
+#define BAR_OFFSET_X 4 // absolute first used x coordinate for bargraph
+#define LASTLINE_Y (display.height() - 8)
+
+#define FREQLINE_Y (BAR_TOP_Y +20) // top corner for moving frequency display (4 chars)
+#define FREQLINE_MIN_X (18)	// right most position for moving frequency text
+#define FREQLINE_MAX_X (display.width() - 51)	// right most position for moving frequency text
 void screens::bandScanMode(uint8_t state)
 {
   reset(); // start from fresh screen.
@@ -416,9 +428,9 @@ void screens::bandScanMode(uint8_t state)
   bestChannelFrequency = 0;
   if (state == STATE_SCAN)
   {
-    drawTitleBox(PSTR2("BAND SCANNER"));
-    display.setCursor(5, 12);
-    display.print(PSTR2("BEST:"));
+    //drawTitleBox(PSTR2("BAND SCANNER"));
+    //display.setCursor(0, 0);
+    //display.print(PSTR2("BEST:"));
   }
   else
   {
@@ -426,81 +438,147 @@ void screens::bandScanMode(uint8_t state)
     display.setCursor(5, 12);
     display.print(PSTR2("Min:     Max:"));
   }
-  display.drawLine(0, 20, display.width(), 20, WHITE);
+  //display.drawLine(0, 20, display.width(), 20, WHITE);
  
-  display.drawLine(0, display.height() - 11, display.width(), display.height() - 11, WHITE);
-  display.setCursor(2, display.height() - 9);
-#ifdef USE_LBAND
-  display.print(PSTR2("5362"));
-#else
-  display.print(PSTR2("5645"));
-#endif
-  display.setCursor(55, display.height() - 9);
-  display.print(PSTR2("5800"));
-  display.setCursor(display.width() - 25, display.height() - 9);
-  display.print(PSTR2("5945"));
+  //display.drawLine(0, display.height() - 11, display.width(), display.height() - 11, WHITE);
+  display.setCursor(2, LASTLINE_Y);
+  display.print(mhz_range_min);
+  //display.setCursor(55, LASTLINE_Y);
+  //display.print(PSTR2("5800"));
+  display.setCursor(display.width() - 25, LASTLINE_Y);
+  display.print(mhz_range_max);
   display.display();
 }
  
+extern int rawRssiA, rawRssiB;
+void print3Digits(int i) { if (i<100) display.print(' '); if (i<10) display.print(' '); display.print(i); }
+
 void screens::updateBandScanMode(bool in_setup, uint8_t channel, uint8_t rssi, uint16_t channelName, uint16_t channelFrequency, uint16_t rssi_setup_min_a, uint16_t rssi_setup_max_a)
 {
-#define SCANNER_LIST_X_POS 60
-  static uint8_t writePos = SCANNER_LIST_X_POS;
-  uint8_t rssi_scaled = map(rssi, 1, 100, 1, 30);
-  uint16_t hight = (display.height() - 12 - rssi_scaled);
+  static uint8_t freqline_y = FREQLINE_Y;
+  static uint8_t ftextx = 64;
+  static uint8_t fpercx = 64;
+  static uint8_t bcfx = 64;
+  static boolean below = true;
+  static uint8_t f=64; // x-position of the maxed frequency
+  static uint8_t h=32; // y-position of the 'half amplitude' mark
+  uint8_t rssi_scaled = rssi / 2; //map(rssi, 1, 100, 1, BAR_HEIGHT);
+  uint16_t hight = BAR_BASE_Y - rssi_scaled; // y-position for the current rssi value
   if (channel != last_channel) // only updated on changes
   {
 #ifdef USE_LBAND
-    display.fillRect((channel * 5 / 2) + 4, display.height() - 12 - 30, 5 / 2, 30 - rssi_scaled, BLACK);
+    display.fillRect((channel * 5 / 2) + 4, display.height() - 12 - BAR_MAX_Y, 5 / 2, BAR_MAX_Y - rssi_scaled, BLACK);
     display.fillRect((channel * 5 / 2) + 4, hight, 5 / 2, rssi_scaled, WHITE);
     // Show Scan Position
-    display.fillRect((channel * 5 / 2) + 4 + 3, display.height() - 12 - 30, 1, 30, BLACK);
-#else
-    display.fillRect((channel * 3) + 4, display.height() - 12 - 30, 3, 30 - rssi_scaled, BLACK);
+    display.fillRect((channel * 5 / 2) + 4 + 3, display.height() - 12 - BAR_MAX_Y, 1, BAR_MAX_Y, BLACK);
+#elif 0
+    display.fillRect((channel * 3) + 4, display.height() - 12 - BAR_MAX_Y, 3, BAR_MAX_Y - rssi_scaled, BLACK);
     display.fillRect((channel * 3) + 4, hight, 3, rssi_scaled, WHITE);
     // Show Scan Position
-    display.fillRect((channel * 3) + 4 + 3, display.height() - 12 - 30, 1, 30, BLACK);
+    /*if (channel < CHANNEL_MAX)*/ display.fillRect((channel * 3) + 4 + 3, display.height() - 12 - BAR_MAX_Y, 1, BAR_MAX_Y, BLACK);
 #endif
+    uint8_t x = channel + BAR_OFFSET_X;
+    display.drawLine(x, 0,  x, hight-1, BLACK); // from top of display
+    display.drawLine(x, hight,  x, BAR_BASE_Y, WHITE);
+    // Show Scan Position
+    display.drawLine(x+1, 0,  x+1, BAR_BASE_Y, INVERSE); // from top of display
+
+    if ( (channelFrequency % TICKER < TICKER/2) ) {
+    	if (below) {
+    		display.drawLine(x, BAR_BASE_Y, x, BAR_BASE_Y+3, WHITE);
+    		below = false;
+    	}
+    }
+    else
+    {
+    	below = true;
+    }
   }
+
   if (!in_setup)
   {
     // if scan started new sweep then show best channel from last sweep
     //  and setup to look for new best-RSSI channel
     if (channel < last_channel)
     {
-      best_rssi = 0;
       if (bestChannelName > 0)
       {  //new best-RSSI channel was found
         display.setTextColor(WHITE, BLACK);
-        display.setCursor(36, 12);
-        display.print((char)(bestChannelName >> 8));    //band char
-        display.print((char)(bestChannelName & 0xFF));  //channel char
-        display.setCursor(52, 12);
+        display.setCursor(fpercx, 0); // erase previous %display
+        display.print(PSTR2("   "));
+        display.setCursor(bcfx, LASTLINE_Y); // erase previous 'bestFreq' display
+        display.print(PSTR2("    "));
+        display.setCursor(FREQLINE_MAX_X, freqline_y); // erase rightmost moving freq
+        display.print(PSTR2("     "));
+        // new pos calculations:
+		f = BAR_OFFSET_X + best_channel;
+		ftextx = min(f, FREQLINE_MAX_X)+3; // x pos of maxed text
+		fpercx = (f<64 ? min(f+10, FREQLINE_MAX_X)+3 : max(f-40, FREQLINE_MIN_X) ); // x pos of maxed percentage text
+		bcfx = max(FREQLINE_MIN_X+11, min(FREQLINE_MAX_X-1,best_channel + BAR_OFFSET_X -11 /*+3*/));
+        h = BAR_BASE_Y - best_rssi/4;
+        freqline_y = (h > BAR_BASE_Y -15 ? FREQLINE_Y :h - 9);
+        display.setCursor(fpercx, 0);
+        //display.print((char)(bestChannelName >> 8));    //band char
+        //display.print((char)(bestChannelName & 0xFF));  //channel char
+        display.print(best_rssi); display.print('%');
+		display.setCursor(bcfx, LASTLINE_Y);
         display.print(bestChannelFrequency);
+        display.setCursor(0, 3);
+        print3Digits(copy_bestRawRssiA);
+        display.setCursor(107, 3);
+        print3Digits(copy_bestRawRssiB);
         bestChannelName = 0;
         bestChannelFrequency = 0;
       }
+      copy_best_rssi = best_rssi;
+      best_rssi = 0;
+      copy_bestRawRssiA = bestRawRssiA;
+      bestRawRssiA = 0;
+      copy_bestRawRssiB = bestRawRssiB;
+      bestRawRssiB = 0;
+      display.drawLine(BARS_COUNT+ BAR_OFFSET_X+1, BAR_TOP_Y,  BARS_COUNT+ BAR_OFFSET_X+1, BAR_BASE_Y, BLACK); // erase rightmost inverse scan position bar
     }
-
+    if (channel <= 15 ) {
+    	// repair display of bestRawRssiA
+        display.setCursor(0, 3);
+        print3Digits(copy_bestRawRssiA);
+    }
+    if (channel >= 107 - BAR_OFFSET_X ) {
+     	// repair display of bestRawRssiB
+         display.setCursor(107, 3);
+         print3Digits(copy_bestRawRssiB);
+    }
+    if (channel >= fpercx && channel < fpercx+30) {
+     	// repair display of percent
+        display.setCursor(fpercx, 0);
+        //display.print((char)(bestChannelName >> 8));    //band char
+        //display.print((char)(bestChannelName & 0xFF));  //channel char
+        //display.print(' ');
+        display.print(copy_best_rssi); display.print('%');
+     }
+	display.setCursor(0, 12);
+	print3Digits(rawRssiA);
+	display.setCursor(max(FREQLINE_MIN_X, min(FREQLINE_MAX_X,channel + BAR_OFFSET_X +3)), freqline_y);
+	display.print(' '); display.print(channelFrequency);
+	display.setCursor(107, 12);
+	print3Digits(rawRssiB);
+	display.drawLine(f,BAR_TOP_Y,f, 10 + BAR_BASE_Y, INVERSE); // location of max freq
+	if (h < BAR_BASE_Y -15) display.drawLine(4,h,124,h, INVERSE); // level of half best_rssi
     if (rssi > RSSI_SEEK_TRESHOLD)
     {
-      if (rssi > best_rssi)
-      {
-        best_rssi = rssi;
-        bestChannelName = channelName;
-        bestChannelFrequency = channelFrequency;
-      }
-      else
-      {
-        if (writePos + 10 > display.width() - 12)
-        { // keep writing on the screen
-          writePos = SCANNER_LIST_X_POS;
-        }
-      }
+		if (rssi > best_rssi) {
+			best_rssi = rssi;
+			best_channel = channel;
+			bestChannelName = channelName;
+			bestChannelFrequency = channelFrequency;
+			bestRawRssiA = rawRssiA;
+			bestRawRssiB = rawRssiB;
+		} else {
+		}
     }
-  }
+  } // (!in_setup
   else
-  {
+  { // in_setup
     display.setCursor(30, 12);
     display.setTextColor(WHITE, BLACK);
     display.print( PSTR2("   ") );

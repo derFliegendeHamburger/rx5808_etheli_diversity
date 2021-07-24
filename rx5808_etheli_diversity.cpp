@@ -147,13 +147,13 @@ const uint8_t channelNameCodes[] PROGMEM = {
 
 
 #ifdef USE_DIVERSITY
-uint8_t diversity_mode = useReceiverAuto;
+uint8_t diversity_mode = useReceiverB; //useReceiverAuto;
 char diversity_check_count = 0; // used to decide when to change antennas.
 #endif
 
 uint8_t system_state = START_STATE;
 uint8_t state_last_used = START_STATE;
-char last_state_menu_id = 2;
+char last_state_menu_id = 1; //at startup jump to 1=band scanner, was 2= manual;
 uint8_t last_state = START_STATE + 1; // force screen draw
 uint8_t active_receiver = useReceiverA;
 
@@ -204,6 +204,8 @@ static bool chanChangedSaveFlag = false;
 static bool previousUpDnButtonFlag = false;
 static bool fromScreenSaverFlag = false;
 
+uint16_t mhz_range_min = MHZ_RANGE_MIN;
+uint16_t mhz_range_max = MHZ_RANGE_MAX;
 
 // SETUP ----------------------------------------------------------------------------
 void setup()
@@ -281,7 +283,7 @@ void setup()
   }
 
   // read saved settings from EEPROM
-  system_state = EEPROM.read(EEPROM_ADR_STATE);
+  system_state = STATE_SCAN; //EEPROM.read(EEPROM_ADR_STATE);
   state_last_used = system_state;
   current_channel_index = EEPROM.read(EEPROM_ADR_CHANIDX);
   if (current_channel_index > CHANNEL_MAX_INDEX)
@@ -454,6 +456,8 @@ void loop()
         case 1: // Band Scanner
           system_state = STATE_SCAN;
           scan_start = 1;
+          mhz_range_min = MHZ_RANGE_MIN;
+          mhz_range_max = MHZ_RANGE_MAX;
           break;
         case 2: // manual mode
           system_state = STATE_MANUAL;
@@ -643,6 +647,10 @@ void loop()
     // simple menu
     switch (system_state)
     {
+    /*************************	********************************************************************************************************	***/
+    //		SCAN	or	RSSI_SETUP
+    /*************************	********************************************************************************************************	***/
+
       case STATE_SCAN: // Band Scanner
         state_last_used = system_state;
       case STATE_RSSI_SETUP: // RSSI setup
@@ -664,8 +672,10 @@ void loop()
         }
 
         // trigger new scan from begin
+#if 0
         channel_sort_idx = CHANNEL_MIN;
         current_channel_index = getChannelSortTableEntry(channel_sort_idx);
+#endif
         scan_start = 1;
         drawScreen.bandScanMode(system_state);
         break;
@@ -1338,9 +1348,9 @@ void loop()
     fromScreenSaverFlag = false;
   }
 
-  /****************************/
+  /*************************	********************************************************************************************************	***/
   /*   Processing SCAN MODE   */
-  /****************************/
+  /*************************	********************************************************************************************************	***/
   else if (system_state == STATE_SCAN || system_state == STATE_RSSI_SETUP)
   {
 #ifdef USE_GC9N_OSD
@@ -1352,9 +1362,9 @@ void loop()
     if (scan_start)
     {
       scan_start = 0;
-      current_channel_mhz = 0;      // tune via 'current_channel_index'
-      setChannelByIdx(current_channel_index);
-      last_channel_index = current_channel_index;
+      current_channel_mhz = mhz_range_min;
+      channel_sort_idx = 0; // we reuse various channel* variables for counting purposes
+      setChannelByFreq(current_channel_mhz);
     }
 
     // print bar for spectrum
@@ -1362,19 +1372,28 @@ void loop()
     // value must be ready
     uint8_t rssi_value = readRSSI();
 
+    // set table index to nearest entry
+	current_channel_index = freqInMhzToNearestFreqIdx( current_channel_mhz, 1);
     uint16_t scanChannelName = channelIndexToName(current_channel_index);
-    uint16_t scanChannelFrequency = getCurrentChannelInMhz();
+    // set tracking equal so tune is via 'current_channel_mhz'
+    tracking_channel_index = current_channel_index;
 
-    drawScreen.updateBandScanMode((system_state == STATE_RSSI_SETUP), channel_sort_idx, rssi_value, scanChannelName, scanChannelFrequency, rssi_setup_min_a, rssi_setup_max_a);
+    drawScreen.updateBandScanMode((system_state == STATE_RSSI_SETUP), channel_sort_idx, rssi_value, scanChannelName, current_channel_mhz, rssi_setup_min_a, rssi_setup_max_a);
 
     // next channel
-    if (channel_sort_idx < CHANNEL_MAX)
+    last_channel_mhz = current_channel_mhz; // to force tune by freq, last must be != current
+    										// and now we step up current_channel_mhz
+    if (channel_sort_idx < BARS_COUNT)
     {
       channel_sort_idx++;
+      current_channel_mhz = map(channel_sort_idx, 0, BARS_COUNT, mhz_range_min, mhz_range_max);
+    		  // mhz_range_min + ( (long)(mhz_range_max - mhz_range_min) * (long)channel_sort_idx ) / BARS_COUNT;
     }
     else
     {
-      channel_sort_idx = CHANNEL_MIN;
+      channel_sort_idx = 0;
+      current_channel_mhz = mhz_range_min;
+#if 0
       if (system_state == STATE_RSSI_SETUP)
       {
         if (!rssi_setup_run--)
@@ -1407,21 +1426,60 @@ void loop()
           beep(1000);
         }
       }
+#endif
     }
-    // new scan possible by press scan
-    FS_BUTTON_DIR = fsButtonDirection();
-    if (digitalRead(buttonUp) == LOW ||  FS_BUTTON_DIR == 1) // force new full new scan
+    // tune min/max range values	-	handling of keys
     {
-      beep(50); // beep & debounce
-      delay(KEY_DEBOUNCE); // debounce
-      last_state = 255; // force redraw by fake state change ;-)
-      channel_sort_idx = CHANNEL_MIN;
-      scan_start = 1;
-      FS_BUTTON_DIR = 0;
-
-    }
-    // update index after channel change
-    current_channel_index = getChannelSortTableEntry(channel_sort_idx);
+		bool upFlag = (digitalRead(buttonUp) == LOW || FS_BUTTON_DIR == 1);    // channel UP
+		bool dnFlag = (digitalRead(buttonDown) == LOW || FS_BUTTON_DIR == 2);  // channel DOWN
+		static int buttonDelayValue;
+		if ((upFlag || dnFlag) && !(upFlag && dnFlag))
+		{  //UP or DOWN key pressed (but not both)
+		  if (!previousUpDnButtonFlag)
+		  {  //button press is "new"
+			beep(5);  // beep & debounce
+			buttonDelayValue = KEY_DEBOUNCE;
+			previousUpDnButtonFlag = true;
+		  }
+		  else
+		  {  //button is being held down, do progressive mod speedup
+			if (buttonDelayValue > 20)
+			  buttonDelayValue -= 20;
+			else if (buttonDelayValue > 0)
+			  --buttonDelayValue;
+		  }
+		  if (buttonDelayValue > 0)
+			delay(buttonDelayValue);  // debounce
+		  FS_BUTTON_DIR = 0;
+		  if (upFlag)
+		  { // up
+			if (buttonDelayValue > 0)
+			  ++mhz_range_min;
+			else
+				mhz_range_min = (mhz_range_min + 10) / 10 * 10;
+#define DISTANCE (BARS_COUNT)
+			if (mhz_range_min > mhz_range_max-DISTANCE) mhz_range_min = mhz_range_max-DISTANCE;
+		  }
+		  else
+		  { // down
+			if (buttonDelayValue > 0)
+			  --mhz_range_max;
+			else
+				mhz_range_max = (mhz_range_max - 1) / 10 * 10;
+			if (mhz_range_max < mhz_range_min+DISTANCE) mhz_range_max = mhz_range_min+DISTANCE;
+		  }
+		  // trigger new scan start + redraw
+		  beep(1); // beep & debounce
+		  last_state = 255; // force redraw by fake state change ;-)
+		  //channel_sort_idx = CHANNEL_MIN;
+		  scan_start = 1;
+		  FS_BUTTON_DIR = 0;
+		}
+		else
+		{
+			previousUpDnButtonFlag = false;
+		}
+    } // tune - handling of keys
   }
 
   /****************************/

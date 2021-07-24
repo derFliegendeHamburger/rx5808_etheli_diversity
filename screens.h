@@ -40,6 +40,9 @@ class screens
     private: // helper functions for screens.
         uint8_t last_rssi;
         uint8_t best_rssi;
+        uint8_t copy_best_rssi, copy_bestRawRssiA, copy_bestRawRssiB;
+        uint8_t best_channel;
+        uint8_t bestRawRssiA, bestRawRssiB;
         uint8_t last_channel;
         uint16_t bestChannelName;
         uint16_t bestChannelFrequency;

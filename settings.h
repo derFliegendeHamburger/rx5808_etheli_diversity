@@ -23,7 +23,7 @@ SOFTWARE.
 #ifndef settings_h
 #define settings_h
 
-#define PROG_REVISION_STR "RX5808 v1.00"
+#define PROG_REVISION_STR "RX5808 v1.3d"
 
 // #define Debug
 
@@ -41,7 +41,7 @@ SOFTWARE.
 
 // this will be displayed on the screensaver.
 // Up to 10 letters
-#define CALL_SIGN "_"
+#define CALL_SIGN "CS"
 
 
 // Feature Toggles
@@ -51,12 +51,12 @@ SOFTWARE.
 //#define USE_GC9N_OSD
 
 //#define USE_FLIP_SCREEN
-#define USE_BOOT_LOGO
+// #define USE_BOOT_LOGO
 
 // Choose if you wish to use 8 additional Channels 
 // 5362 MHz 5399 MHz 5436 MHz 5473 MHz 5510 MHz 5547 MHz 5584 MHz 5621 MHz
 // Local laws may prohibit the use of these frequencies use at your own risk!
-#define USE_LBAND
+//#define USE_LBAND
 
 // Receiver Module version
 // used for tuning time
@@ -94,10 +94,10 @@ SOFTWARE.
 #endif
 
 // this two are minimum required
-#define buttonUp 2
+#define buttonUp 4 //2
 #define buttonMode 3
 // optional comfort buttons
-#define buttonDown 4
+#define buttonDown 2 //4
 #define buttonSave 5
 // Buzzer
 #define buzzer 6
@@ -111,12 +111,12 @@ SOFTWARE.
 // number of analog rssi reads to average for the current check.
 #define RSSI_READS 10
 // RSSI default raw range
-#define RSSI_MIN_VAL 90
-#define RSSI_MAX_VAL 220
+#define RSSI_MIN_VAL 75 //90
+#define RSSI_MAX_VAL 215 //220
 // 75% threshold, when channel is printed in spectrum
 #define RSSI_SEEK_FOUND 50
 // RSSI value for channel found during auto-seek
-#define RSSI_SEEK_TRESHOLD 60
+#define RSSI_SEEK_TRESHOLD 1 //60
 // scan loops for setup run
 #define RSSI_SETUP_RUN 3
 
@@ -136,7 +136,7 @@ SOFTWARE.
 #define STATE_SCREEN_SAVER_LITE 11
 #define STATE_MAX_VALUE STATE_SCREEN_SAVER_LITE
 
-#define START_STATE STATE_SEEK
+#define START_STATE STATE_SCAN
 
 // Seconds to wait before force entering screensaver
 #define SCREENSAVER_TIMEOUT 6
@@ -170,6 +170,12 @@ SOFTWARE.
 
 #define MIN_CHANNEL_MHZ 5000      //min MHz value for Set by MHz mode
 #define MAX_CHANNEL_MHZ 5999      //max MHz value for Set by MHz mode
+
+#define BARS_COUNT (119)
+#define MHZ_RANGE_MIN 5505 // 5645
+#define MHZ_RANGE_MAX 5995 // 5945
+
+#define TICKER 50 // in bargraph, show axis marking every 50MHz
 
 #ifdef USE_DIVERSITY
 // used to figure out if diversity module has been plugged in.
